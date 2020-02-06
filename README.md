@@ -1,7 +1,7 @@
 # Lydia's awesome webiste!
 
-Look at all my cool sutuff!
+Look at all my cool stuff adn science!
 
-###A header!
+### A header!
 
 My first project...

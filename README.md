@@ -1,2 +1,3 @@
-# my-site-test
-Testing a webpage with gh-pages!
+# Lydia's awesome webiste!
+
+Look at all my cool sutuff!

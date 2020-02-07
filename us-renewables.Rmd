@@ -6,9 +6,163 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
-# Testing this!
+## Attach packages
 
-read this?? 
+```{r}
+library(tidyverse)
+library(janitor)
+library(lubridate)
+library(here)
+library(paletteer)
+library(tsibble)
+library(fable)
+library(fabletools)
+library(feasts)
+library(forecast)
+library(sf)
+library(tmap)
+library(mapview)
+```
+
+## Monthly US energy consumption (renewables)
+
+```{r}
+us_renew <- read_csv(here("data","renewables_cons_prod.csv")) %>% 
+  clean_names()
+```
+
+
+- Make description all lowercase
+- Only keep observations where "description" variable contains "consumpiton"
+- Remove any observations where "description" variable contains "total" 
+
+```{r}
+renew_clean <- us_renew %>% 
+  mutate(description = str_to_lower(description)) %>%  #use mutate to over-right
+  filter(str_detect(description, pattern = "consumption")) %>% #now look for a pattern "consumption" and if isn't there get rid of that row (string detect is a true false logical function (if tru then it stays, if false then it is taken out))
+  filter(!str_detect(description, pattern = "total"))#because we now want to exclude, or look for false use !
+```
+
+
+### Convert 'yyymm' column to a date AND then help it know that it's a time frame 
+```{r}
+#Now we want to work with time component!
+#Lubridate is great and makes nice assumptions but you should always check (like month 13! It just didn't make dates for those because that's rediculous)
+
+renew_date <- renew_clean %>% 
+  mutate(yr_mo_day = lubridate::parse_date_time(yyyymm, "ym")) %>%  #give it the structure of the colum and formae
+  mutate(month_sep = yearmonth(yr_mo_day)) %>% #now converting to SIBBLE format because FEAST AND FORMAT wants it with SIBBLE, month_sep is stored as a DATE and YEARMON which is great for time series stuff later
+  mutate(value = as.numeric(value)) %>%  #value was read in as a character
+  drop_na(month_sep, value) #where month_sep OR value has an NA, get rid of that row
+
+#Make a version where I have the month & year in separate colums: 
+renew_parsed <- renew_date %>% 
+  mutate(month = month(yr_mo_day, label = TRUE)) %>% #label = true means that the new month is a class of ordered factor that has the month abbreviations
+  mutate(year = year(yr_mo_day))
+```
+
+### Look at it: 
+
+```{r}
+renew_gg <- ggplot(data = renew_date, aes(x = month_sep, 
+                                          y = value,
+                                          group = description)) +
+  geom_line(aes(color = description))
+
+
+renew_gg
+```
+
+
+Updating colors with paleteer palettes: SO FREAKING COOL
+```{r}
+renew_gg + 
+  scale_color_paletteer_d("ggsci::uniform_startrek")#chood d because we are choosing from DISCRETE functions
+```
+
+### Coerce renew_parsed to a tsibble
+
+```{r}
+renew_ts <- as_tsibble(renew_parsed, key = description, index = month_sep)#index is the sibble compatable time variable (in this case month_sep)
+```
+
+Let's look at our ts data in a couple different ways:
+```{r}
+renew_ts %>% autoplot(value) #because we told it above what to use, this does all the other work
+renew_ts %>% gg_subseries(value) #see the different sources broken up by month across all years, graphing exploration super fast!
+
+#renew_ts %>% gg_season(value) #seasonally, but this breaks a lot so let's make this another way:
+
+season_graph <- ggplot(data = renew_parsed, aes(x = month, y = value, group = year)) +
+  geom_line(aes(color = year)) +
+  facet_wrap(~description,
+             ncol = 1,
+             scales = "free",
+             strip.position = "right")
+```
+
+
+### Just look at hydroelectric energy consumption
+```{r}
+hydro_ts <- renew_ts %>% 
+  filter(description == "hydroelectric power consumption")
+
+hydro_ts %>% autoplot(value)
+hydro_ts %>% gg_subseries(value) #blue lines are monthly values! 
+#hydro_ts %>%  gg_season(value)
+
+ggplot(hydro_ts, aes(x = month, y = value, group = year)) +
+  geom_line(aes(color = year))
+  
+```
+
+
+### What if I want quarterly average consumption for hydro? 
+```{r}
+hydro_quarterly <- hydro_ts %>% 
+  index_by(year_qu = ~(yearquarter(.))) %>% #group as a function of yearquarter based on (.) the groups that exist 
+  summarize(ave_consumption = mean(value))
+
+head(hydro_quarterly)
+```
+
+
+### Decompose that hydro_ts
+```{r}
+dcmp <- hydro_ts %>% 
+  model(STL(value ~ season(window = 5))) #model value as a function of season
+
+components(dcmp) %>% autoplot() #+ #top is acutaly data, then moving average tren, then seasonal extracted, then fourth graph is anything is left over 
+  #scale_y_continuous(limits = c(150,350)) #you can force scales like you would in gg plot (not always helpful)
+```
+
+```{r}
+hist(components(dcmp)$remainder)
+```
+
+Now look at the ACF:
+```{r}
+hydro_ts %>% 
+  ACF(value) %>% 
+  autoplot()
+
+#x axis lab[1M], means that it is showing month by month and that every 12 months are most coorelated 
+```
+
+
+###DANGER DANGER DANGER (don't use this unless you know your shit)
+```{r}
+
+hydro_model <- hydro_ts %>% 
+  model(
+    ARIMA(value)
+  ) %>% 
+  fabletools::forecast(h = "4 years") #how long into the future since your last point you want to forcast
+
+hydro_model %>% autoplot(filter(hydro_ts, year(month_sep) > 2010))#want to tack on existing data and can choose time range
+
+```
+

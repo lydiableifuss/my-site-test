@@ -156,14 +156,14 @@ hydro_ts %>%
 ###DANGER DANGER DANGER (don't use this unless you know your shit)
 ```{r}
 
-hydro_model <- hydro_ts %>% 
-  model(
-    ARIMA(value),
-    ETS(value)
-  ) %>% 
-  fabletools::forecast(h = "4 years") #how long into the future since your last point you want to forcast
+#hydro_model <- hydro_ts %>% 
+ # model(
+   # ARIMA(value),
+    #ETS(value)
+ # ) %>% 
+ # fabletools::forecast(h = "4 years") #how long into the future since your last point you want to forcast
 
-hydro_model %>% autoplot(filter(hydro_ts, year(month_sep) > 2010))#want to tack on existing data and can choose time range
+#hydro_model %>% autoplot(filter(hydro_ts, year(month_sep) > 2010))#want to tack on existing data and can choose time range
 
 ```
 

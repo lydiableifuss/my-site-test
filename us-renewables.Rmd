@@ -172,9 +172,9 @@ hydro_model %>% autoplot(filter(hydro_ts, year(month_sep) > 2010))#want to tack 
 #customizing use tmap, quick and dirty look use mapview
 
 ```{r}
-world <- read_sf(dsn = here("data", "TM_WORLD_BORDERS_SIMPL-0.3-1"),
-                 layer = "TM_WORLD_BORDERS_SIMPL-0.3")
+#world <- read_sf(dsn = here("data", "TM_WORLD_BORDERS_SIMPL-0.3-1"),
+                 #layer = "TM_WORLD_BORDERS_SIMPL-0.3")
 
-mapview(world)
+#mapview(world)
 ```
 
